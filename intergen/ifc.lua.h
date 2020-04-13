@@ -55,24 +55,23 @@ namespace lua {
     int ctx_query_interface(lua_State * L);
 
 
-//    static const coid::token _lua_class_register_key = "__ifc_class_register";
+    static const coid::token _lua_class_register_key = "lua::register_class";
     static const coid::token _lua_parent_index_key = "__index";
     static const coid::token _lua_new_index_key = "__newindex";
     static const coid::token _lua_member_count_key = "__memcount";
-    static const coid::token _lua_global_ctx_key = "__ctx_mt";
-    static const coid::token _lua_global_table_key = "_G";
-    static const coid::token _lua_implements_fn_name = "implements";
     static const coid::token _lua_cthis_key = "__cthis";
     static const coid::token _lua_class_hash_key = "__class_hash";
     static const coid::token _lua_gc_key = "__gc";
     static const coid::token _lua_weak_meta_key = "__weak_object_meta";
-    static const coid::token _lua_log_key = "log";
     static const coid::token _lua_context_info_key = "__ctx_inf";
+    static const coid::token _lua_implements_fn_name = "implements";
+    static const coid::token _lua_log_key = "log";
     static const coid::token _lua_query_interface_key = "query_interface";
     static const coid::token _lua_require_key = "require";
 
     const uint32 LUA_WEAK_REGISTRY_INDEX = 1;
     const uint32 LUA_WEAK_IFC_MT_INDEX = 2;
+    const uint32 LUA_CONTEXT_MATETABLE_INDEX = 3;
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -322,11 +321,10 @@ namespace lua {
     };
 
 ////////////////////////////////////////////////////////////////////////////////
-    /// expect context table on the top of the stack!!!
 
     inline void register_class_to_context(lua_State * L, const coid::token& class_name) {
         coid::charstr class_registrar_name;
-        class_registrar_name << "lua::register_class." << class_name;
+        class_registrar_name << _lua_class_register_key << "." << class_name;
         lua_CFunction reg_fn = reinterpret_cast<lua_CFunction>(coid::interface_register::get_interface_creator(class_registrar_name));
         if (!reg_fn) {
             throw coid::exception() << class_name << " class registring funcion not found!";
@@ -337,16 +335,23 @@ namespace lua {
 
 ///////////////////////////////////////////////////////////////////////////////
     inline int script_implements(lua_State * L) {
+        const int n = lua_gettop(L); // number of arguments
+
+        if(n != 1) // it must contain class name argument
+        {
+            coidlog_error("lua::script_implements", "Wrong number of arguments!");
+            return 0;
+        }
+
+        if (!lua_isstring(L, -1)) // it must have string with class name on the top of the stack
+        {
+            coidlog_error("lua::script_implements", "The argument is not the string!");
+            return 0;
+        }
+        
         coid::token class_name = lua_totoken(L,-1);
-        lua_pushvalue(L, LUA_ENVIRONINDEX);
         register_class_to_context(L, class_name);
-        lua_pop(L, 1);
         return 0;
-    }
-
-////////////////////////////////////////////////////////////////////////////////
-    inline int lua_log(lua_State * L) {
-
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,21 +389,15 @@ namespace lua {
             int weak_metatable_idx = luaL_ref(_L,LUA_REGISTRYINDEX);
             DASSERT(weak_metatable_idx == LUA_WEAK_IFC_MT_INDEX);
 
-        //    _throw_fnc_handle.set_state(_L);
-        //    lua_pushcfunction(_L, &catch_lua_error);
-       //     _throw_fnc_handle.set_ref();
 
-           // _global_context.set_state(_L);
-         //   lua_getglobal(_L, _lua_global_table_key);
-         //   _global_context.set_ref();
-
-            //lua_createtable(_L, 0, 0);
-            //lua_setglobal(_L, _lua_class_register_key);
+            lua_createtable(_L, 0, 1);
+            lua_pushvalue(_L, LUA_GLOBALSINDEX);
+            lua_setfield(_L, -2, _lua_parent_index_key);
+            int context_metatable_idx = luaL_ref(_L, LUA_REGISTRYINDEX);
+            DASSERT(context_metatable_idx == LUA_CONTEXT_MATETABLE_INDEX);
         }
     protected:
         lua_State * _L;
-       // registry_handle _throw_fnc_handle;
-       // registry_handle _global_context;
     };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -407,11 +406,10 @@ namespace lua {
         lua_context(lua_State * L)
             :registry_handle(L)
         {
-            lua_newtable(_L);
-            lua_pushvalue(_L, -1);
-            lua_setmetatable(_L, -1);
-            lua_pushvalue(_L, LUA_GLOBALSINDEX);
-            lua_setfield(_L,-2, _lua_parent_index_key);
+            lua_newtable(_L); // create context table
+            lua_rawgeti(_L, LUA_REGISTRYINDEX, LUA_CONTEXT_MATETABLE_INDEX); // get context metatable
+            lua_setmetatable(_L, -2);
+
             lua_pushcfunction(_L, &script_implements);
             lua_pushvalue(L, -2);
             lua_setfenv(L,-2);
@@ -427,9 +425,6 @@ namespace lua {
             lua_setfenv(L, -2);
             lua_setfield(_L, -2, _lua_query_interface_key);
 
-//            lua_getglobal(_L, _lua_require_key);
-//            lua_setfield(_L, -2, _lua_require_key);
-
             set_ref();
         };
 
@@ -441,69 +436,6 @@ namespace lua {
         ~lua_context() {
         };
     };
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LUA script seems pretty redundant for me
-//
-/*    class lua_script : public registry_handle{
-    public:
-        lua_script()
-            : registry_handle()
-        {
-        }
-
-        void compile(const coid::token& script_code, const coid::token& script_path) {
-            if (!has_context()) {
-                coid::exception ex;
-                ex << "Can't compile LUA script without context!";
-                throw ex;
-            }
-
-            int res = luaL_loadbuffer(_L,script_code._ptr,script_code.len(),script_path);
-            if (res != 0) {
-                throw_lua_error(_L);
-            }
-
-            set_ref();
-
-            get_ref();
-            _context->get_ref();
-            lua_setfenv(_L, -2);
-            lua_pop(_L, 1);
-        };
-
-        void run() {
-            if (!has_context()) {
-                coid::exception ex;
-                ex << "Can't run LUA script without context!";
-                throw ex;
-            }
-
-            lua_pushcfunction(_L,&catch_lua_error);
-            get_ref();
-            int res = lua_pcall(_L,0,0,-2);
-            if (res != 0) {
-                throw_lua_error(_L);
-            }
-
-            lua_pop(_L, 1);
-        }
-
-        bool has_context() {
-            return !_context.is_empty();
-        }
-
-        void set_context(lua_context * ctx) {
-            _context = ctx;
-            _L = ctx->get_state();
-        }
-    protected:
-        iref<lua_context> _context;
-    };
-    */
 
     inline void load_script(iref<registry_handle> context, const coid::token& script_code, const coid::token& script_path) {
         if (context.is_empty() || context->is_empty()) {
@@ -592,51 +524,6 @@ namespace lua {
             return _context;
         }
 
-        ///Load and run script
-      /*  iref<lua_script> load_script()
-        {
-
-            /*lua_state_wrap* state = lua_state_wrap::get_lua_state();
-            if (!has_context()) {
-                _context = new lua_context(state->get_raw_state());
-            }
-
-            coid::token script_tok, script_path = _url;
-            coid::charstr script_tmp;
-
-            if (is_path()) {
-                if (!script_path)
-                    script_path = _str;
-
-                coid::bifstream bif(_str);
-                if (!bif.is_open())
-                    throw coid::exception() << _str << " not found";
-
-                script_tmp = _prefix;
-
-                coid::binstreambuf buf;
-                buf.swap(script_tmp);
-                buf.transfer_from(bif);
-                buf.swap(script_tmp);
-
-                script_tok = script_tmp;
-            }
-            else if (_prefix) {
-                script_tmp << _prefix << _str;
-                script_tok = script_tmp;
-            }
-            else {
-                script_tok = _str;
-            }
-
-            lua_script script;
-            script.set_context(_context.get());
-            script.compile(script_tok, script_path);
-            script.run();
-
-            return nullptr;
-        }*/
-
     private:
 
         coid::token _str;
@@ -722,29 +609,6 @@ inline iref<registry_handle> wrap_object(intergen_interface* orig, iref<registry
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/*    inline bool bind_object(const coid::token& bindname, intergen_interface* orig, v8::Handle<v8::Context> context)
-    {
-        if (!orig) return false;
-
-#ifdef V8_MAJOR_VERSION
-        v8::Isolate* iso = v8::Isolate::GetCurrent();
-        v8::HandleScope handle_scope(iso);
-#else
-        v8::HandleScope handle_scope;
-#endif
-
-        typedef v8::Handle<v8::Value>(*fn_wrapper)(intergen_interface*, v8::Handle<v8::Context>);
-        fn_wrapper fn = static_cast<fn_wrapper>(orig->intergen_wrapper(intergen_interface::backend::js));
-
-#ifdef V8_MAJOR_VERSION
-        return fn && context->Global()->Set(v8::String::NewFromOneByte(iso,
-            (const uint8*)bindname.ptr(), v8::String::kNormalString, bindname.len()), fn(orig, context));
-#else
-        return fn && context->Global()->Set(v8::String::New(bindname.ptr(), bindname.len()), fn(orig, context));
-#endif
-    }*/
-
-    ////////////////////////////////////////////////////////////////////////////////
 
 inline __declspec(noinline) int ctx_query_interface_exc(lua_State * L) {
     try {
@@ -781,6 +645,8 @@ inline __declspec(noinline) int ctx_query_interface_exc(lua_State * L) {
 
     return -1;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 inline int ctx_query_interface(lua_State * L) {
     int res = ctx_query_interface_exc(L);
