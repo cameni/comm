@@ -97,8 +97,7 @@ $(/if)-$
     }
 
     // --- registrar ---
-    /// expects context table on the top of the stack
-    static int register_to_context_$name$(lua_State * L);
+    static int register_to_context_$name$(lua_State * L, iref<lua_context>* context);
 
     // --- creators ---
 
@@ -714,12 +713,10 @@ int $name$_lua_dispatcher::luarebind_events(lua_State * L) {
 iref<::lua::registry_handle> $name$_lua_dispatcher::create_interface_object( bool make_weak )
 {
     lua_State * L = _context->get_state();
-    _context->get_ref();
     if (!lua_hasfield(L, -1, lua_class_name()))
     {
-        register_to_context_$name$(L);
+        register_to_context_$name$(L, &_context);
     }
-    lua_pop(L, 1);
 
     lua_createtable(L, 0, 3);
     lua_pushvalue(L, -1);
@@ -814,22 +811,18 @@ $-[/event]$
 $-(/if)$
 
 // --- registrar ---
-int $name$_lua_dispatcher::register_to_context_$name$(lua_State * L) {
-    //lua_getglobal(L, ::lua::_lua_class_register_key);
-
-   // if (lua_isnil(L, -1)) {
-   //     throw coid::exception() << "Given lua_State is not valid!(use lua_state_wrapper to create valid lua_State)";
-  //  }
-
-    //const uint methods_count = $-[method !static ? !destroy ? !internal ? !operator? after="$@order$"]$$[/method]$
-
+int $name$_lua_dispatcher::register_to_context_$name$(lua_State * L, iref<lua_context>* context) {
+#ifdef _DEBUG
+    const int stack_top = lua_gettop(L);
+#endif
+    if( context ){ // if this function call is from c++ side it provides context
+        (*context)->get_ref();
+    }
+    else{
+        lua_pushvalue(L, LUA_ENVIRONINDEX); // push the context table
+    }
+    
     lua_createtable(L, 0, 0);
-
-    lua_pushcfunction(L, &$name$_lua_dispatcher::lualog);
-    lua_setfield(L, -2, ::lua::_lua_log_key);
-
-    lua_pushcfunction(L, &$name$_lua_dispatcher::luaquery_interface);
-    lua_setfield(L, -2, ::lua::_lua_query_interface_key);
 
 $-[method !static? !destroy ? !internal? !operator?]$
     lua_pushcfunction(L, &$..name$_lua_dispatcher::lua_$name$$@index$);
@@ -839,8 +832,14 @@ $-[event]$
     lua_pushtoken(L,"empty_event");
     lua_setfield(L, -2, "$name$");
 $[/event]-$
-
+    
     lua_setfield(L, -2, lua_class_name());
+    lua_pop(L,1); // pop the contex table
+
+#ifdef _DEBUG
+    DASSERT(lua_gettop(L) == stack_top); // ensure we left the stack in the initial state
+#endif
+    
 
     return 0;
 }
