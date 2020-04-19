@@ -6,6 +6,7 @@
 #include <comm/metastream/fmtstream_lua_capi.h>
 #include <comm/binstream/filestream.h>
 #include <comm/binstream/binstreambuf.h>
+#include <comm/log/logger.h>
 
 $-[class]$$[iface]$
 #include "$relpathlua$"
@@ -49,13 +50,13 @@ $-(/if)$
 protected:
 
     backend intergen_backend() const override { return backend::lua; }
-    static const coid::token& lua_class_name() { static const coid::token _lua_class_name = "$ns rest="_" after="_"$$name$"; return _lua_class_name; };
+    static const coid::token& lua_interface_class_name() { static const coid::token _lua_class_name = "$ns rest="_" after="_"$$name$"; return _lua_class_name; };
 
 public:
 
     iref<::lua::registry_handle> create_interface_object(bool make_weak);
 $-(if event?)$
-    void bind_events( bool force, iref<::lua::registry_handle> ref ) const;
+    void bind_events( bool force, iref<::lua::registry_handle> binding_object, const coid::token& script_class_name ) const;
 $-(/if)$
 
     COIDNEWDELETE($name$_lua_dispatcher);
@@ -97,7 +98,8 @@ $(/if)-$
     }
 
     // --- registrar ---
-    static int register_to_context_$name$(lua_State * L, iref<lua_context>* context);
+    static int register_interface_$name$(lua_State * L);
+    static int register_implementation_$name$(lua_State * L, const coid::token& implementation_script_class_name);
 
     // --- creators ---
 
@@ -106,7 +108,7 @@ $(if !comments.empty?)$$[comments]-$
     $@value$
 $[/comments]$$(/if)-$
     static iref<$..name$_lua_dispatcher> $name$(lua_State * L, const ::lua::script_handle& scriptpath
-        $-[args]$, $type$ $name$$size$$[/args]$, const coid::token& bindname, iref<::lua::registry_handle>* );
+        $-[args]$, $type$ $name$$size$$[/args]$, const coid::token& bind_class_name, const coid::token& bind_var_name, iref<::lua::registry_handle>* );
 
     $-(if !internal?)$
     static int luacreator_$name$$@order$(lua_State * L, ::lua::interface_context* ifc);
@@ -143,17 +145,18 @@ $-[event]$
 $-[/event]$
 
 virtual void force_bind_script_events() {
-    bind_events( true, iref<::lua::registry_handle>(&::lua::registry_handle()));
+    DASSERT(0);
+    //bind_events( true, iref<::lua::registry_handle>(&::lua::registry_handle()));
 }
 
 private:
     bool is_event_bound(int id)
     {
-        if (!_bound_events) {
+        /*if (!_bound_events) {
             bind_events( false, iref<::lua::registry_handle>(&::lua::registry_handle()));
-        }
+        }*/
 
-        return !_events[id];
+        return _bound_events && _events[id];
     }
 
     //event wrappers for event invocation from lua
@@ -415,13 +418,14 @@ $return.type$ $..name$_lua_dispatcher::$name$($[args rest="," after=" "]$ $type$
 $-(if internal?)$
     throw coid::exception("method not marked for scripting");
 $-(elif)$
-    bind_events(false, ::lua::registry_handle::get_empty());
+    DASSERT(_bound_events);
+    //bind_events(false, ::lua::registry_handle::get_empty());
     lua_State * L = _context->get_state();
     iref<::lua::weak_registry_handle> ev__ = _events[$@index$];
 
     if (ev__->is_empty())
     $-(if default_event_body?)$ {
-        $default_event_body$;
+        $default_event_body$
         $-(if return.type?="void")$
         return;
         $-(/if)$
@@ -684,7 +688,7 @@ $-(if event?)$
             iref<::lua::registry_handle> val;
             if (lua_gettop(L) > 0)
                 val->set_ref();
-            ifc->bind_events(true, val);
+            ifc->bind_events(true, val, "");
          }
     }
     catch (coid::exception e) {
@@ -711,9 +715,16 @@ int $name$_lua_dispatcher::luarebind_events(lua_State * L) {
 iref<::lua::registry_handle> $name$_lua_dispatcher::create_interface_object( bool make_weak )
 {
     lua_State * L = _context->get_state();
-    if (!lua_hasfield(L, -1, lua_class_name()))
+
+#ifdef _DEBUG
+    const int stack_top = lua_gettop(L);
+#endif
+
+    lua_rawgeti(L,LUA_REGISTRYINDEX, ::lua::LUA_INTERFACE_METATABLE_REGISTER_INDEX); // push interface metatable register table
+    
+    if (!lua_hasfield(L, -1, lua_interface_class_name()))
     {
-        register_to_context_$name$(L, &_context);
+        register_interface_$name$(L);
     }
 
     lua_createtable(L, 0, 3);
@@ -727,11 +738,9 @@ iref<::lua::registry_handle> $name$_lua_dispatcher::create_interface_object( boo
     lua_pushnumber(L, ints($hash$));
     lua_setfield(L, -2, ::lua::_lua_class_hash_key);
 
-    _context->get_ref();
-    lua_getfield(L, -1, lua_class_name());
-    lua_setfield(L, -3, ::lua::_lua_parent_index_key);
-    lua_pop(L, 1);
-
+    lua_getfield(L, -2, lua_interface_class_name());
+    lua_setfield(L, -2, ::lua::_lua_parent_index_key);
+    
     iref<::lua::registry_handle> obj;
 
     if (make_weak) {
@@ -747,12 +756,19 @@ iref<::lua::registry_handle> $name$_lua_dispatcher::create_interface_object( boo
     }
 
     obj->set_ref();
+
+    lua_pop(L, 1); // pop interface metatable register table
+
+#ifdef _DEBUG
+    DASSERT(stack_top == lua_gettop(L));
+#endif
+
     return obj;
 }
 
 $-(if event.empty!)$
 ////////////////////////////////////////////////////////////////////////////////
-void $name$_lua_dispatcher::bind_events(bool force, iref<::lua::registry_handle> ref ) const
+void $name$_lua_dispatcher::bind_events(bool force, iref<::lua::registry_handle> binding_object, const coid::token& script_class_name ) const
 {
     if (!force && _bound_events)
         return;
@@ -766,19 +782,24 @@ $-[/event]$
     lua_State * L = nullptr;
     bool clear = false;
 
-    if (ref.is_empty()) { // nullptr
+    if (binding_object.is_empty()) { // nullptr
         clear = true;
     }
-    else if (ref->is_empty()) { // ref handle is not holding any object
+    else if (binding_object->is_empty()) { // ref handle is not holding any object
         L = _context->get_state();
         _context->get_ref();
-        lua_getfield(L, -1, lua_class_name());
+        if(!lua_hasfield(L, -1, script_class_name)){
+            coidlog_error("$name$_lua_dispatcher::bind_events", "Given contex doesn't implements this class!");
+            lua_pop(L, 1);
+            return;
+        }
+        lua_getfield(L, -1, script_class_name);
         lua_insert(L, -2);
         lua_pop(L, 1);
     }
     else {
-        L = ref->get_state();
-        ref->get_ref();
+        L = binding_object->get_state();
+        binding_object->get_ref();
         lua_getfield(L, -1, ::lua::_lua_parent_index_key);
         lua_insert(L, -2);
         lua_pop(L, 1);
@@ -809,16 +830,11 @@ $-[/event]$
 $-(/if)$
 
 // --- registrar ---
-int $name$_lua_dispatcher::register_to_context_$name$(lua_State * L, iref<lua_context>* context) {
+int $name$_lua_dispatcher::register_interface_$name$(lua_State * L) {
 #ifdef _DEBUG
     const int stack_top = lua_gettop(L);
 #endif
-    if( context ){ // if this function call is from c++ side it provides context
-        (*context)->get_ref();
-    }
-    else{
-        lua_pushvalue(L, LUA_ENVIRONINDEX); // push the context table
-    }
+    lua_rawgeti(L,LUA_REGISTRYINDEX, ::lua::LUA_INTERFACE_METATABLE_REGISTER_INDEX); // push interface metatable register table
     
     lua_createtable(L, 0, 0);
 
@@ -826,13 +842,13 @@ $-[method !static? !destroy ? !internal? !operator?]$
     lua_pushcfunction(L, &$..name$_lua_dispatcher::lua_$name$$@index$);
     lua_setfield(L, -2, "$name$");
 $[/method]$
-$-[event]$
+/*$-[event]$
     lua_pushtoken(L,"empty_event");
     lua_setfield(L, -2, "$name$");
 $[/event]-$
-    
-    lua_setfield(L, -2, lua_class_name());
-    lua_pop(L,1); // pop the contex table
+  */  
+    lua_setfield(L, -2, lua_interface_class_name());
+    lua_pop(L,1); // pop interface metatable register table
 
 #ifdef _DEBUG
     DASSERT(lua_gettop(L) == stack_top); // ensure we left the stack in the initial state
@@ -842,12 +858,37 @@ $[/event]-$
     return 0;
 }
 
+int $name$_lua_dispatcher::register_implementation_$name$(lua_State * L, const coid::token& implementation_script_class_name)
+{
+#ifdef _DEBUG
+    const int stack_top = lua_gettop(L);
+#endif
+
+    lua_pushvalue(L, LUA_ENVIRONINDEX); // push script context
+
+    lua_createtable(L, 0, 0);
+
+$-[event]$
+    lua_pushtoken(L,"empty_event");
+    lua_setfield(L, -2, "$name$");
+$[/event]-$
+
+    lua_setfield(L, -2, implementation_script_class_name.is_empty()?lua_interface_class_name():implementation_script_class_name);
+    lua_pop(L, 1); // pop script context
+
+#ifdef _DEBUG
+    DASSERT(lua_gettop(L) == stack_top); // ensure we left the stack in the initial state
+#endif
+    
+
+    return 0;
+}
 // --- creators ---
 
 $-[method creator? !ifccr?]$
 ////////////////////////////////////////////////////////////////////////////////
 iref<$..name$_lua_dispatcher> $..name$_lua_dispatcher::$name$(lua_State * L, const ::lua::script_handle& script
-        $-[args]$, $type$ $name$$size$$[/args]$, const coid::token& bindname, iref<::lua::registry_handle>* ctx )
+        $-[args]$, $type$ $name$$size$$[/args]$, const coid::token& bind_class_name, const coid::token& bind_var_name, iref<::lua::registry_handle>* ctx )
 {
     // create interface object
     iref<$..name$_lua_dispatcher> ifc = $..ns rest="::" after="::"$$..name$::$name$(new $..name$_lua_dispatcher$[args]$, $name$$[/args]$);
@@ -912,10 +953,14 @@ iref<$..name$_lua_dispatcher> $..name$_lua_dispatcher::$name$(lua_State * L, con
     ifc->_context->set_ref();
     ifc->_object = ifc->create_interface_object(false);
 
-    if (bindname) {
+$-(if ..event?)$
+    ifc->bind_events(false, ::lua::registry_handle::get_empty(), bind_class_name);
+$-(/if)$
+
+    if (bind_var_name) {
         context->get_ref();
         ifc->_object->get_ref();
-        lua_setfield(L, -2, bindname);
+        lua_setfield(L, -2, bind_var_name);
         lua_pop(L, 1);
     }
 
@@ -1064,7 +1109,12 @@ static void register_binders_for_$name$( bool on )
 {
     interface_register::register_interface_creator(
         "lua::register_class.$ns rest="_" after="_"$$name$",
-        on ? (void*)&$name$_lua_dispatcher::register_to_context_$name$
+        on ? (void*)&$name$_lua_dispatcher::register_interface_$name$
+        : nullptr);
+
+    interface_register::register_interface_creator(
+        "lua::implement_class.$ns rest="_" after="_"$$name$",
+        on ? (void*)&$name$_lua_dispatcher::register_implementation_$name$
         : nullptr);
 
 $-[method creator? !ifccr?]$

@@ -54,8 +54,10 @@
 namespace lua {
     int ctx_query_interface(lua_State * L);
 
+    typedef int (*class_implement_fn)(lua_State*, const coid::token&);
 
-    static const coid::token _lua_class_register_key = "lua::register_class";
+    static const coid::token _lua_register_class_key = "lua::register_class";
+    static const coid::token _lua_implement_class_key = "lua::implement_class";
     static const coid::token _lua_parent_index_key = "__index";
     static const coid::token _lua_new_index_key = "__newindex";
     static const coid::token _lua_member_count_key = "__memcount";
@@ -65,6 +67,7 @@ namespace lua {
     static const coid::token _lua_weak_meta_key = "__weak_object_meta";
     static const coid::token _lua_context_info_key = "__ctx_inf";
     static const coid::token _lua_implements_fn_name = "implements";
+    static const coid::token _lua_implements_as_fn_name = "implements_as";
     static const coid::token _lua_log_key = "log";
     static const coid::token _lua_query_interface_key = "query_interface";
     static const coid::token _lua_require_key = "require";
@@ -72,6 +75,7 @@ namespace lua {
     const uint32 LUA_WEAK_REGISTRY_INDEX = 1;
     const uint32 LUA_WEAK_IFC_MT_INDEX = 2;
     const uint32 LUA_CONTEXT_MATETABLE_INDEX = 3;
+    const uint32 LUA_INTERFACE_METATABLE_REGISTER_INDEX = 4;
 
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -322,15 +326,16 @@ namespace lua {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-    inline void register_class_to_context(lua_State * L, const coid::token& class_name) {
-        coid::charstr class_registrar_name;
-        class_registrar_name << _lua_class_register_key << "." << class_name;
-        lua_CFunction reg_fn = reinterpret_cast<lua_CFunction>(coid::interface_register::get_interface_creator(class_registrar_name));
+    inline void implement_class_in_context(lua_State * L, const coid::token& interface_class_name, const coid::token& script_class_name) {
+        coid::charstr implement_function_registrar_name;
+        implement_function_registrar_name << _lua_implement_class_key << "." << interface_class_name;
+
+        class_implement_fn reg_fn = reinterpret_cast<class_implement_fn>(coid::interface_register::get_interface_creator(implement_function_registrar_name));
         if (!reg_fn) {
-            throw coid::exception() << class_name << " class registring funcion not found!";
+            throw coid::exception() << interface_class_name << " class implement funcion not found!";
         }
 
-        reg_fn(L);
+        reg_fn(L, script_class_name);
     }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -350,7 +355,35 @@ namespace lua {
         }
         
         coid::token class_name = lua_totoken(L,-1);
-        register_class_to_context(L, class_name);
+        implement_class_in_context(L, class_name, "");
+        return 0;
+    }
+
+///////////////////////////////////////////////////////////////////////////////
+    inline int script_implements_as(lua_State* L) {
+        const int n = lua_gettop(L); // number of arguments
+
+        if (n != 2) // it must contain interface class name argument and script class name
+        {
+            coidlog_error("lua::script_implements", "Wrong number of arguments!");
+            return 0;
+        }
+
+        if (!lua_isstring(L, -1)) // it must have string with interface class name
+        {
+            coidlog_error("lua::script_implements", "The first argument is not the string!");
+            return 0;
+        }
+
+        if (!lua_isstring(L, -2)) // it must have string with script class name
+        {
+            coidlog_error("lua::script_implements", "The second argument is not the string!");
+            return 0;
+        }
+
+        coid::token script_class_name = lua_totoken(L, -1);
+        coid::token interface_class_name = lua_totoken(L, -2);
+        implement_class_in_context(L, interface_class_name, script_class_name);
         return 0;
     }
 
@@ -364,10 +397,17 @@ namespace lua {
 
         ~lua_state_wrap() {
             //_throw_fnc_handle.release();
-            lua_close(_L);
+            close_lua();
         }
 
         lua_State * get_raw_state() { return _L; }
+
+        void close_lua() {
+            if (_L) {
+                lua_close(_L);
+                _L = nullptr;
+            }
+        }
 
     private:
         lua_state_wrap() {
@@ -395,6 +435,12 @@ namespace lua {
             lua_setfield(_L, -2, _lua_parent_index_key);
             int context_metatable_idx = luaL_ref(_L, LUA_REGISTRYINDEX);
             DASSERT(context_metatable_idx == LUA_CONTEXT_MATETABLE_INDEX);
+
+            lua_createtable(_L, 0, 1);
+            lua_pushvalue(_L, LUA_GLOBALSINDEX);
+            lua_setfield(_L, -2, _lua_parent_index_key);
+            const int interface_metatable_register_idx = luaL_ref(_L, LUA_REGISTRYINDEX);
+            DASSERT(interface_metatable_register_idx== LUA_INTERFACE_METATABLE_REGISTER_INDEX);
         }
     protected:
         lua_State * _L;
@@ -414,6 +460,11 @@ namespace lua {
             lua_pushvalue(L, -2);
             lua_setfenv(L,-2);
             lua_setfield(_L, -2, _lua_implements_fn_name);
+
+            lua_pushcfunction(_L, &script_implements_as);
+            lua_pushvalue(L, -2);
+            lua_setfenv(L, -2);
+            lua_setfield(_L, -2, _lua_implements_as_fn_name);
 
             lua_pushcfunction(_L, &ctx_log);
             lua_pushvalue(L, -2);
