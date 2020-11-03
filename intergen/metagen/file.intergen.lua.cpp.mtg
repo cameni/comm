@@ -482,11 +482,7 @@ $(/if)$
 $-[/args]$
 
     if (res != 0) {
-        const int top = lua_gettop(L);
-        coid::charstr error_msg = "$..ns rest="::" after="::"$lua::$..name$.$name$():";
-        error_msg << lua_totoken(L,-1);
-        lua_pop(L,-1);
-        ::lua::throw_lua_error(L,  error_msg);
+        ::lua::throw_lua_error(L,  "$..ns rest="::" after="::"$lua::$..name$.$name$():");
     }
 
 // gather results
