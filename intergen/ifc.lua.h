@@ -71,6 +71,7 @@ namespace lua {
     static const coid::token _lua_log_key = "log";
     static const coid::token _lua_query_interface_key = "query_interface";
     static const coid::token _lua_require_key = "require";
+    static const coid::token _lua_rebind_events = "rebind_events";
 
     const uint32 LUA_WEAK_REGISTRY_INDEX = 1;
     const uint32 LUA_WEAK_IFC_MT_INDEX = 2;
@@ -709,6 +710,30 @@ inline int ctx_query_interface(lua_State * L) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+inline int rebind_events(lua_State* L)
+{
+    const int n = lua_gettop(L); // number of arguments
+    if (n != 2) // it must contain interface instance table we are binding events to and table with implemented events
+    {
+        coidlog_error("lua::script_implements", "Wrong number of arguments!");
+        return 0;
+    }
+
+    if (!lua_istable(L, -1) || !lua_hasfield(L, -1, _lua_cthis_key)) // interface of C++ object 
+    {
+        coidlog_error("lua::script_implements", "The first argument is not a C++ object interface!");
+        return 0;
+    }
+
+    if (!lua_istable(L, -2))
+    {
+        coidlog_error("lua::script_implements", "The second argument is not the table with implemented events!");
+        return 0;
+    }
+
+    return 0;
+}
 
 } //namespace lua
 
