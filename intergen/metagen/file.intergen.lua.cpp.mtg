@@ -482,7 +482,11 @@ $(/if)$
 $-[/args]$
 
     if (res != 0) {
-        ::lua::throw_lua_error(L, "$..ns rest="::" after="::"$lua::$..name$.$name$(): ");
+        const int top = lua_gettop(L);
+        coid::charstr error_msg = "$..ns rest="::" after="::"$lua::$..name$.$name$():";
+        error_msg << lua_totoken(L,-1);
+        lua_pop(L,-1);
+        ::lua::throw_lua_error(L,  error_msg);
     }
 
 // gather results
@@ -685,7 +689,7 @@ $-(if event?)$
         lua_pop(L, 1);
 
         if (ifc) {
-            iref<::lua::registry_handle> val;
+            iref<::lua::registry_handle> val = new ::lua::registry_handle(L);
             if (lua_gettop(L) > 0)
                 val->set_ref();
             ifc->bind_events(true, val, "");
@@ -778,7 +782,7 @@ $-[event]$
         "$name$",
 $-[/event]$
     };
-
+    int stack_top = 0;
     lua_State * L = nullptr;
     bool clear = false;
 
@@ -787,6 +791,9 @@ $-[/event]$
     }
     else if (binding_object->is_empty()) { // ref handle is not holding any object
         L = _context->get_state();
+#ifdef _DEBUG
+        stack_top = lua_gettop(L);
+#endif
         _context->get_ref();
         if(!lua_hasfield(L, -1, script_class_name)){
             coidlog_error("$name$_lua_dispatcher::bind_events", "Given contex doesn't implements this class!");
@@ -799,10 +806,12 @@ $-[/event]$
     }
     else {
         L = binding_object->get_state();
+
+#ifdef _DEBUG
+        stack_top = lua_gettop(L);
+#endif
+
         binding_object->get_ref();
-        lua_getfield(L, -1, ::lua::_lua_parent_index_key);
-        lua_insert(L, -2);
-        lua_pop(L, 1);
     }
 
     for (int i = 0; i<$event.@size$; ++i)
@@ -823,6 +832,10 @@ $-[/event]$
     }
 
     lua_pop(L, 1);
+
+#ifdef _DEBUG
+    DASSERT(lua_gettop(L) == stack_top); // ensure we left the stack in the initial state
+#endif
 
     _bound_events = true;
 }
@@ -847,6 +860,11 @@ $[/method]$
     lua_setfield(L, -2, "$name$");
 $[/event]-$
   */  
+$-(if event?)$
+    lua_pushcfunction(L, &$name$_lua_dispatcher::luarebind_events);
+    lua_setfield(L, -2, "rebind_events");
+$-(/if)$
+
     lua_setfield(L, -2, lua_interface_class_name());
     lua_pop(L,1); // pop interface metatable register table
 
