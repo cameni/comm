@@ -671,7 +671,7 @@ _declspec(noinline) int $name$_lua_dispatcher::luarebind_events_exc( lua_State *
 {
 $-(if event?)$
     try {
-        lua_pushbot(L);
+        lua_pushvalue(L,1); // move first function argument on the top of the stack(caller object in this case)
         if (!lua_istable(L,-1) || !lua_hasfield(L, -1, ::lua::_lua_cthis_key))
             return 0;
 
@@ -682,7 +682,9 @@ $-(if event?)$
         $ns rest="::" after="::"$lua::$name$_lua_dispatcher* ifc = reinterpret_cast<$ns rest="::" after="::"$lua::$name$_lua_dispatcher*>
             (*static_cast<size_t*>(lua_touserdata(L,-1)));
 
-        lua_pop(L, 1);
+        lua_pop(L, 1); // pop user data
+
+        // now only script object with events is on the top of the stack
 
         if (ifc) {
             iref<::lua::registry_handle> val = new ::lua::registry_handle(L);
@@ -696,7 +698,7 @@ $-(if event?)$
         ::lua::catch_lua_error(L);
     }
 
-    return -1;
+    return 0;
 $-(elif)$
     return 0;
 $-(/if)$
@@ -778,7 +780,6 @@ $-[event]$
         "$name$",
 $-[/event]$
     };
-    int stack_top = 0;
     lua_State * L = nullptr;
     bool clear = false;
 
@@ -787,9 +788,6 @@ $-[/event]$
     }
     else if (binding_object->is_empty()) { // ref handle is not holding any object
         L = _context->get_state();
-#ifdef _DEBUG
-        stack_top = lua_gettop(L);
-#endif
         _context->get_ref();
         if(!lua_hasfield(L, -1, script_class_name)){
             coidlog_error("$name$_lua_dispatcher::bind_events", "Given contex doesn't implements this class!");
@@ -802,12 +800,6 @@ $-[/event]$
     }
     else {
         L = binding_object->get_state();
-
-#ifdef _DEBUG
-        stack_top = lua_gettop(L);
-#endif
-
-        binding_object->get_ref();
     }
 
     for (int i = 0; i<$event.@size$; ++i)
@@ -826,12 +818,6 @@ $-[/event]$
 
         _events[i]->set_ref();
     }
-
-    lua_pop(L, 1);
-
-#ifdef _DEBUG
-    DASSERT(lua_gettop(L) == stack_top); // ensure we left the stack in the initial state
-#endif
 
     _bound_events = true;
 }
