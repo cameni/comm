@@ -78,6 +78,84 @@ namespace lua {
     const uint32 LUA_CONTEXT_MATETABLE_INDEX = 3;
     const uint32 LUA_INTERFACE_METATABLE_REGISTER_INDEX = 4;
 
+
+    inline void debug_stack_value_to_str(lua_State* L, int idx, bool recursive, coid::charstr& result)
+    {
+
+        DASSERT(idx <= lua_gettop(L));
+
+        if (lua_isboolean(L, idx)) {
+
+            result << lua_toboolean(L, idx);
+        }
+        else if (lua_isnumber(L, idx)) {
+
+            result << lua_tonumber(L, idx);
+        }
+        else if (lua_isstring(L, idx)) {
+
+            result << lua_tostring(L, idx);
+        }
+        else if (lua_isnil(L, idx)) {
+
+            result << "nil";
+        }
+        else if (lua_isfunction(L, idx)) {
+
+            result << "lua function";
+        }
+        else if (lua_iscfunction(L, idx)) {
+
+            result << "C function";
+        }
+        else if (lua_istable(L, idx))
+        {
+            result << "{\n";
+
+            lua_pushnil(L);
+            while (lua_next(L, idx) != 0) 
+            {
+                result << "\t" << lua_tostring(L,-2) << ": ";
+                if (lua_istable(L, -1) && !recursive)
+                {
+                    result << "{...}";
+                }
+                else 
+                {
+                    debug_stack_value_to_str(L, lua_gettop(L), recursive, result);
+                    result << "\n";
+                }
+
+                lua_pop(L, 1);
+            }
+
+            result << "}";
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+    inline void debug_print_stack(lua_State* L) 
+    {
+        const int n = lua_gettop(L);
+        if (n > 0) {
+            coid::charstr res = "";
+            for (int i = 1; i <= n; i++)
+            {
+                res << "\n" << i << ": ";
+                debug_stack_value_to_str(L, i, true, res);
+            }
+
+            coidlog_debug("debug_print_stack", res);
+        }
+        else 
+        {
+            coidlog_debug("debug_print_stack", "The stack is empty!");
+        }
+
+        DASSERT(n == lua_gettop(L));
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
 
     inline int lua_class_new_index_fn(lua_State * L) {
