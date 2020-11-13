@@ -687,6 +687,11 @@ $-(if event?)$
         // now only script object with events is on the top of the stack
 
         if (ifc) {
+            if (ifc->intergen_real_interface() != ifc) 
+            {
+                ifc->intergen_real_interface()->set_event_dispatcher(ifc);
+            }
+
             iref<::lua::registry_handle> val = new ::lua::registry_handle(L);
             if (lua_gettop(L) > 0)
                 val->set_ref();
@@ -1098,6 +1103,7 @@ iref <::lua::registry_handle> create_wrapper_$name$(::$ns rest = "::" after = ":
         ifc.create(new $ns rest="::" after="::"$lua::$name$_lua_dispatcher(context, static_cast<::$ns rest="::" after="::"$$name$*>(orig)));
 
         obj = ifc->create_interface_object(true);
+        ifc->_object = obj;
     }
 
     return obj;

@@ -157,6 +157,7 @@ protected:
 
     iref<policy_intrusive_base> _host;
     ifn_t* _vtable = 0;
+    coid::clean_ptr<policy_intrusive_base> _event_dispatcher;
 
     virtual ~intergen_interface() {
         _vtable = 0;
@@ -181,6 +182,9 @@ public:
     template<typename T>
     T* iface() { return static_cast<T*>(this); }
 
+    template<typename T>
+    T* event_dispatcher() { return _event_dispatcher ? static_cast<T*>(_event_dispatcher.get()) : static_cast<T*>(this); }
+
     ///Invoke callback handler
     template <class R, class ...Args>
     R call(const coid::callback<R(Args...)>& cbk, Args ...args) const {
@@ -189,6 +193,8 @@ public:
 
 
     ifn_t* vtable() const { return _vtable; }
+
+    void set_event_dispatcher(intergen_interface* event_dispatcher) { _event_dispatcher = event_dispatcher; }
 
     //@return hash of interface definition, serving for version checks
     virtual int intergen_hash_id() const = 0;

@@ -322,7 +322,7 @@ $return.type$ $....class$::$intname$($[args rest="," after=" "]$ $ifckwds after=
         { $default_event_body$ }$(elif)$
         throw coid::exception() << "$name$" << " handler not implemented";$(/if)$
     else
-        return $..varname$->iface<$..ns rest="::" after="::"$$..name$>()->$name$($[args rest=", "]$$name$$[/args]$);
+        return $..varname$->event_dispatcher<$..ns rest="::" after="::"$$..name$>()->$name$($[args rest=", "]$$name$$[/args]$);
 }
 $[/event]-$
 
