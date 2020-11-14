@@ -689,7 +689,8 @@ $-(if event?)$
         if (ifc) {
             if (ifc->intergen_real_interface() != ifc) 
             {
-                ifc->intergen_real_interface()->set_event_dispatcher(ifc);
+                ifc->assign_safe(nullptr, nullptr);
+                ifc->assign_safe(ifc, nullptr);
             }
 
             iref<::lua::registry_handle> val = new ::lua::registry_handle(L);
