@@ -181,10 +181,12 @@ bool Class::parse(iglexer& lex, charstr& templarg_, const dynarray<charstr>& nam
 
                     if (lex.matches(':')) {
                         //a base class for the interface
-                        ifc->baseclass = ifc->base = lex.match(lex.IDENT);
+                        token bc;
+                        ifc->baseclass = ifc->base = bc = lex.match(lex.IDENT);
                         while (lex.matches("::"_T)) {
+                            *ifc->baseclassnss.add() = bc;
                             ifc->base << "::"_T;
-                            token bc = lex.match(lex.IDENT);
+                            bc = lex.match(lex.IDENT);
                             ifc->base << bc;
                             ifc->baseclass.set(ifc->base.ptre()-bc.len(), ifc->base.ptre());
                         }

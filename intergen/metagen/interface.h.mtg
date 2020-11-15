@@ -118,13 +118,13 @@ $-(/if)$
         return _name;
     }
 
-    int intergen_hash_id() const override $-(if !virtual?)$ final$(/if)$ { return HASHID; }
+    int intergen_hash_id() const override $-(if !virtual?)$$(/if)$ { return HASHID; }
 
-    bool iface_is_derived( int hash ) const override $-(if !virtual?)$ final$(/if)$ {
+    bool iface_is_derived( int hash ) const override $-(if !virtual?)$$(/if)$ {
         return hash == HASHID $-(if base?)$ || $base$::iface_is_derived(hash)$(/if)$;
     }
 
-    const coid::tokenhash& intergen_interface_name() const override $-(if !virtual?)$ final$(/if)$ {
+    const coid::tokenhash& intergen_interface_name() const override $-(if !virtual?)$$(/if)$ {
         return IFCNAME();
     }
 
@@ -169,7 +169,7 @@ $-(/if)$
         return _cached_wrapper;
     }
 
-    void* intergen_wrapper( backend bck ) const override $-(if !virtual?)$ final$(/if)$ {
+    void* intergen_wrapper( backend bck ) const override $-(if !virtual?)$$(/if)$ {
         switch(bck) {
         case backend::js:  return intergen_wrapper_cache<backend::js>();
         case backend::jsc: return intergen_wrapper_cache<backend::jsc>();
@@ -180,7 +180,7 @@ $-(/if)$
 
     backend intergen_backend() const override { return backend::cxx; }
 
-    const coid::token& intergen_default_creator( backend bck ) const override $-(if !virtual?)$ final$(/if)$ {
+    const coid::token& intergen_default_creator( backend bck ) const override $-(if !virtual?)$$(/if)$ {
         return intergen_default_creator_static(bck);
     }
 
