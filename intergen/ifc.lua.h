@@ -66,11 +66,12 @@ namespace lua {
     static const coid::token _lua_gc_key = "__gc";
     static const coid::token _lua_weak_meta_key = "__weak_object_meta";
     static const coid::token _lua_context_info_key = "__ctx_inf";
+    static const coid::token _lua_context_dir_key = "__ctx_dir";
     static const coid::token _lua_implements_fn_name = "implements";
     static const coid::token _lua_implements_as_fn_name = "implements_as";
     static const coid::token _lua_log_key = "log";
     static const coid::token _lua_query_interface_key = "query_interface";
-    static const coid::token _lua_require_key = "require";
+    static const coid::token _lua_include_key = "include";
     static const coid::token _lua_rebind_events = "rebind_events";
 
     const uint32 LUA_WEAK_REGISTRY_INDEX = 1;
@@ -466,6 +467,8 @@ namespace lua {
         return 0;
     }
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
     class lua_state_wrap {
     public:
@@ -525,6 +528,8 @@ namespace lua {
         lua_State * _L;
     };
 
+    int ctx_include(lua_State* L); // need forward declaration for context
+
 ////////////////////////////////////////////////////////////////////////////////
     class lua_context: public registry_handle{
     public:
@@ -536,24 +541,29 @@ namespace lua {
             lua_setmetatable(_L, -2);
 
             lua_pushcfunction(_L, &script_implements);
-            lua_pushvalue(L, -2);
-            lua_setfenv(L,-2);
+            lua_pushvalue(_L, -2);
+            lua_setfenv(_L,-2);
             lua_setfield(_L, -2, _lua_implements_fn_name);
 
             lua_pushcfunction(_L, &script_implements_as);
-            lua_pushvalue(L, -2);
-            lua_setfenv(L, -2);
+            lua_pushvalue(_L, -2);
+            lua_setfenv(_L, -2);
             lua_setfield(_L, -2, _lua_implements_as_fn_name);
 
             lua_pushcfunction(_L, &ctx_log);
-            lua_pushvalue(L, -2);
-            lua_setfenv(L, -2);
+            lua_pushvalue(_L, -2);
+            lua_setfenv(_L, -2);
             lua_setfield(_L, -2, _lua_log_key);
 
             lua_pushcfunction(_L, &ctx_query_interface);
-            lua_pushvalue(L, -2);
-            lua_setfenv(L, -2);
+            lua_pushvalue(_L, -2);
+            lua_setfenv(_L, -2);
             lua_setfield(_L, -2, _lua_query_interface_key);
+
+            lua_pushcfunction(_L, &ctx_include);
+            lua_pushvalue(_L, -2);
+            lua_setfenv(_L, -2);
+            lua_setfield(_L, -2, _lua_include_key);
 
             set_ref();
         };
@@ -567,6 +577,7 @@ namespace lua {
         };
     };
 
+////////////////////////////////////////////////////////////////////////////////
     inline void load_script(iref<registry_handle> context, const coid::token& script_code, const coid::token& script_path) {
         if (context.is_empty() || context->is_empty()) {
             throw coid::exception("Can't load script without context!");
@@ -579,12 +590,83 @@ namespace lua {
         }
 
         context->get_ref();
+
+        coid::token script_dir;
+        script_dir = script_path;
+        if (script_dir.contains_back('\\') || script_dir.contains_back('/')) {
+            script_dir.cut_right_group_back(coid::DIR_SEPARATORS);
+        }
+        
+        lua_pushtoken(L, script_dir);
+        lua_setfield(L, -2, ::lua::_lua_context_dir_key);
+        lua_pushtoken(L, script_path);
+        lua_setfield(L, -2, ::lua::_lua_context_info_key);
+
         lua_setfenv(L,-2);
         res = lua_pcall(L, 0, 0, 0);
         if (res != 0) {
             throw_lua_error(L);
         }
     }
+
+////////////////////////////////////////////////////////////////////////////////
+    inline void load_script(iref<registry_handle> context, const coid::token& script_path) {
+        coid::token script_tok;
+        coid::charstr script_tmp;
+        
+		coid::bifstream bif(script_path);
+		if (!bif.is_open())
+			throw coid::exception() << script_path << " not found";
+
+		coid::binstreambuf buf;
+		buf.swap(script_tmp);
+		buf.transfer_from(bif);
+		buf.swap(script_tmp);
+
+		script_tok = script_tmp;
+        
+        load_script(context,script_tok,script_path);
+    }
+
+///////////////////////////////////////////////////////////////////////////////
+    inline int ctx_include(lua_State* L) {
+        coid::charstr script_path = "";
+        if (lua_hasfield(L, LUA_ENVIRONINDEX, ::lua::_lua_context_dir_key)) {
+            lua_getfield(L, LUA_ENVIRONINDEX, ::lua::_lua_context_dir_key);
+            if (!lua_isstring(L, -1)) {
+                lua_pushnil(L);
+                coidlog_error("lua::ctx_include", "Someone has overwriten " << ::lua::_lua_context_dir_key << " key in the context!");
+                return 1;
+            }
+            else
+            {
+                script_path << lua_totoken(L, -1) << "/";
+                lua_pop(L, 1);
+            }
+        }
+
+        if (!lua_isstring(L, -1))
+        {
+            lua_pushnil(L);
+            coidlog_error("lua::ctx_include", "Given argument is not script path!");
+            return 1;
+        }
+        else {
+            script_path << lua_totoken(L, -1);
+            lua_pop(L, 1);
+        }
+
+        iref<lua_context> context = new ::lua::lua_context(L);
+
+        load_script(context, script_path);
+
+        context->get_ref();
+        iref<weak_registry_handle> context_weak = new ::lua::weak_registry_handle(L);
+        context_weak->set_ref();
+        context_weak->get_ref();
+
+        return 1;
+    };
 
 ////////////////////////////////////////////////////////////////////////////////
     ///Helper for script loading
