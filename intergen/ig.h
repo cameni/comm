@@ -367,6 +367,8 @@ struct Interface
     token baseclass;
     token basepath;
 
+    dynarray<charstr> baseclassnss;
+
     dynarray<MethodIG> method;
     dynarray<MethodIG> event;
 
@@ -541,6 +543,7 @@ struct Interface
                 m.member("base", p.base);
                 m.member("baseclass", p.baseclass);
                 m.member("basepath", p.basepath);
+                m.member("baseclassns", p.baseclassnss);
                 m.member("virtual", p.bvirtual);
                 m.member("default_creator", p.default_creator);
             });

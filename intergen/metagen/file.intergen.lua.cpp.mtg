@@ -51,6 +51,9 @@ protected:
 
     backend intergen_backend() const override { return backend::lua; }
     static const coid::token& lua_interface_class_name() { static const coid::token _lua_class_name = "$ns rest="_" after="_"$$name$"; return _lua_class_name; };
+    $(if base?)$static const coid::token& lua_interface_base_class_name() { static const coid::token _lua_class_name = "$baseclassns rest="_" after="_"$$baseclass$"; return _lua_class_name; };
+    $(/if)$
+
 
 public:
 
@@ -835,6 +838,11 @@ int $name$_lua_dispatcher::register_interface_$name$(lua_State * L) {
 #ifdef _DEBUG
     const int stack_top = lua_gettop(L);
 #endif
+
+    $(if base?)$
+    coid::token base_name = lua_interface_base_class_name();
+    $(/if)$
+
     lua_rawgeti(L,LUA_REGISTRYINDEX, ::lua::LUA_INTERFACE_METATABLE_REGISTER_INDEX); // push interface metatable register table
     
     lua_createtable(L, 0, 0);
