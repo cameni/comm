@@ -9,6 +9,7 @@ iglexer::iglexer()
 
     IDENT   = def_group( "identifier", "_a..zA..Z", "a..zA..Z_0..9" );
     NUM     = def_group( "number", "0..9" );
+    ARROW = def_sequence("!arrow"_T, "->"_T);
     def_group( "operator", ":!%^-+?/|" );
     def_group_single( "separator", "=&*~.;,<>()[]{}" );
 

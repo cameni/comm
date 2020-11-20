@@ -166,6 +166,7 @@ bool Class::parse(iglexer& lex, charstr& templarg_, const dynarray<charstr>& nam
                     ifc->bdefaultcapture = lex.matches_either('+', '-') == 1;
                     ifc->name = lex.match(lex.IDENT);
 
+
                     while (lex.matches("::"_T)) {
                         if (ifc->nsname)
                             ifc->nsname << "::"_T;
@@ -179,7 +180,22 @@ bool Class::parse(iglexer& lex, charstr& templarg_, const dynarray<charstr>& nam
                         ifc->nsname << "::"_T;
                     ifc->nsname << ifc->name;
 
+                    bool inherits= false;
+
+                    bool arrow = lex.enable(lex.ARROW, true);
+
                     if (lex.matches(':')) {
+                        inherits = true;
+                    }
+                    else if (lex.matches("->"_T)) {
+                        inherits = true;
+                        ifc->bdirect_inheritance = true;
+                    }
+
+                    lex.enable(lex.ARROW, arrow);
+                    
+                    if (inherits) 
+                    {
                         //a base class for the interface
                         token bc;
                         ifc->baseclass = ifc->base = bc = lex.match(lex.IDENT);
@@ -188,7 +204,7 @@ bool Class::parse(iglexer& lex, charstr& templarg_, const dynarray<charstr>& nam
                             ifc->base << "::"_T;
                             bc = lex.match(lex.IDENT);
                             ifc->base << bc;
-                            ifc->baseclass.set(ifc->base.ptre()-bc.len(), ifc->base.ptre());
+                            ifc->baseclass.set(ifc->base.ptre() - bc.len(), ifc->base.ptre());
                         }
                     }
 
