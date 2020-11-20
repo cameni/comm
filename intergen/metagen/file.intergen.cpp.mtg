@@ -21,6 +21,14 @@ $-[class iface.empty!]$
 static_assert( std::is_base_of<policy_intrusive_base, ::$ns rest="::" after="::"$$class$>::value, "class '$class$' must be derived from policy_intrusive_base");
 
 $-[iface]$
+$-(if direct_inheritance?)$
+static_assert($base$::is_derived_from_host_class<::$ns rest="::" after="::"$$class$>(),"class '::$ns rest="::" after="::"$$class$' must be derived from $base$ host class when using direct inheritance('|')");
+
+extern void * $baseclassns rest="_" after="_"$$baseclass$_dispatcher_get_vtable();
+
+$-(/if)$
+void * $ns rest="_" after="_"$$name$_dispatcher_get_vtable();
+
 ////////////////////////////////////////////////////////////////////////////////
 // interface $[ns]$$@value$::$[/ns]$$name$ of class $..class$
 $[ns]$
@@ -31,6 +39,7 @@ $-[/ns]$
 class $name$_dispatcher : public $name$
 {
     friend class $name$;
+    friend void * ::$ns rest="_" after="_"$$name$_dispatcher_get_vtable();
 
 private:
 
@@ -44,12 +53,17 @@ private:
 $-(if !virtual?)$
         if (_vtable1) return _vtable1;
 
-        _vtable1 = new ifn_t[$nifcmethods$];
+        _vtable1 = new ifn_t[$(if direct_inheritance?)$$name$::_ifc_methods_count$(elif)$$nifcmethods$$(/if)$];
+        
+        $-(if direct_inheritance?)$
+        memcpy(static_cast<ifn_t*>($baseclassns rest="_" after="_"$$baseclass$_dispatcher_get_vtable()),_vtable1,sizeof(*_vtable1) * $base$::_ifc_methods_count);
+        $-(/if)$
+
 $-[method !static?]$
  $-(if hasifc?)$
-        _vtable1[$@order$] = reinterpret_cast<ifn_t>(static_cast<$return.type$(policy_intrusive_base::*)($[args rest=","]$ $-(if fnarg?)$$type$(*)($fnargs$)$(elif)$$type$$(/if)-$ $size$$[/args]$)$(if const?)$const$(/if)$>(&$name$__ifc_wrapper));
+        _vtable1[$(if ..direct_inheritance?)$$..base$::_ifc_methods_count + $(/if)$$@order$] = reinterpret_cast<ifn_t>(static_cast<$return.type$(policy_intrusive_base::*)($[args rest=","]$ $-(if fnarg?)$$type$(*)($fnargs$)$(elif)$$type$$(/if)-$ $size$$[/args]$)$(if const?)$const$(/if)$>(&$name$__ifc_wrapper));
  $-(elif)$
-        _vtable1[$@order$] = reinterpret_cast<ifn_t>(static_cast<$return.type$(policy_intrusive_base::*)($[args rest=","]$ $-(if fnarg?)$$type$($memfnclass after="::"$*)($fnargs$)$(elif)$$type$$(/if)-$ $size$$[/args]$)$(if const?)$const$(/if)$>(&::$....ns rest="::" after="::"$$....class$::$intname$));
+        _vtable1[$(if ..direct_inheritance?)$$..base$::_ifc_methods_count + $(/if)$$@order$] = reinterpret_cast<ifn_t>(static_cast<$return.type$(policy_intrusive_base::*)($[args rest=","]$ $-(if fnarg?)$$type$($memfnclass after="::"$*)($fnargs$)$(elif)$$type$$(/if)-$ $size$$[/args]$)$(if const?)$const$(/if)$>(&::$....ns rest="::" after="::"$$....class$::$intname$));
  $-(/if)$
 $-[/method]-$
 
@@ -329,5 +343,10 @@ $[/event]-$
 $[..nss]$} //namespace $@value$
 $[/..nss]-$
 $(/if)-$
+
+void * $ns rest="_" after="_"$$name$_dispatcher_get_vtable()
+{
+    return $ns rest="::" after="::"$$name$_dispatcher::get_vtable();
+}
 
 $-[/iface]$$[/class]$

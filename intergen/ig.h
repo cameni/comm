@@ -19,6 +19,7 @@ class iglexer : public lexer
 public:
     int IDENT,NUM,CURLY,ROUND,SQUARE,ANGLE,SQSTRING,DQSTRING,RLCMD,IGKWD;
     int IFC_LINE_COMMENT,IFC_BLOCK_COMMENT,SLCOM,MLCOM;
+    int ARROW;
 
     static const token MARK;
     static const token MARKP;
@@ -403,7 +404,7 @@ struct Interface
 
     bool bvirtual = false;
     bool bdefaultcapture = false;
-
+    bool bdirect_inheritance = false;
 
     void copy_methods(Interface& o)
     {
@@ -546,6 +547,7 @@ struct Interface
                 m.member("baseclassns", p.baseclassnss);
                 m.member("virtual", p.bvirtual);
                 m.member("default_creator", p.default_creator);
+                m.member("direct_inheritance", p.bdirect_inheritance);
             });
     }
 };

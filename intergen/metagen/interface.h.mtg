@@ -41,6 +41,10 @@ $-(if inhmask?)$
 
 $-(/if)$
 public:
+     template<typename T> static constexpr bool is_derived_from_host_class() 
+    {
+        return std::is_base_of<::$classnsx rest="::" after="::"$$class$,T>::value;
+    }
 
     // --- interface methods ---
 
@@ -53,6 +57,7 @@ $[/method]-$
 $-(if !event.empty?)$
 
 protected:
+
     // --- interface events (callbacks from host to client) ---
     // ---       overload these to handle host events       ---
 
@@ -200,6 +205,9 @@ $-(/if)$
     }
 
 protected:
+    static constexpr int _ifc_methods_count = $nifcmethods$$(if base?)$ + $base$::_ifc_methods_count$(/if)$;
+    $-(if direct_inheritance?)$
+    $-(/if)$
 $-(if varname?)$
 
     static coid::comm_mutex& share_lock() {
@@ -287,7 +295,7 @@ $-(if !virtual?)$
 
 $-[method !static? !destroy?]$
 inline $return.type$ $..name$::$name$($[args rest="," after=" "]$ $type$ $(if fnarg?)$( $-memfnclass after="::"-$ *$name$)($fnargs$)$(elif)$$name$$(/if)$$size$$[/args]$) $-(if const?)$ const$(/if)$
-{ return VT_CALL($return.type$,($[args rest=","]$ $-(if fnarg?)$$type$($memfnclass after="::"$*)($fnargs$)$(elif)$$type$$(/if)-$ $size$$[/args]$) $-(if const?)$ const$(/if)$,$index$)($[args rest=","]$ $-(if xref?)$std::forward<$basetype$>($(/if)-$ $name$ $-(if xref?)$)$(/if)-$ $[/args]$); }
+{ return VT_CALL($return.type$,($[args rest=","]$ $-(if fnarg?)$$type$($memfnclass after="::"$*)($fnargs$)$(elif)$$type$$(/if)-$ $size$$[/args]$) $-(if const?)$ const$(/if)$,$index$$(if ..direct_inheritance?)$ + $..base$::_ifc_methods_count$(/if)$)($[args rest=","]$ $-(if xref?)$std::forward<$basetype$>($(/if)-$ $name$ $-(if xref?)$)$(/if)-$ $[/args]$); }
 $[/method]-$
 
 #pragma warning(pop)
