@@ -31,7 +31,7 @@ $-(if !comments.empty?)$$[comments]$
 $@value$
 $-[/comments]$$(/if)$
 class $name$_lua_dispatcher
-    : public ::lua::interface_wrapper_base<$ns rest="::"$::$name$>
+    : public ::lua::lua_intergen_dispatcher<$ns rest="::"$::$name$>
 {
 $-(if event?)$
     mutable iref<::lua::weak_registry_handle> _events[$event.@size$];
@@ -187,13 +187,13 @@ __declspec(noinline) int $..name$_lua_dispatcher::lua_$name$$@index$_exc( lua_St
             throw coid::exception(tmp);
         }
 
-        if (!lua_istable(L, 1) || !lua_hasfield(L, 1, ::lua::_lua_cthis_key)) {
+        if (!lua_istable(L, 1) || !lua_hasfield(L, 1, ::lua::_lua_interface_cptr_key)) {
             coid::charstr tmp = "Caller is not valid object in ";
             tmp << "$..name$.$name$";
             throw coid::exception(tmp);
         }
 
-        lua_getfield(L, 1, ::lua::_lua_cthis_key);
+        lua_getfield(L, 1, ::lua::_lua_dispatcher_cptr_key);
 
         ::lua::interface_wrapper_base<$..ns rest = "::"$::$..name$>* ifc = reinterpret_cast<::lua::interface_wrapper_base<$..ns rest = "::"$::$..name$>*>(
         *static_cast<size_t*>(lua_touserdata(L, -1)));
@@ -563,8 +563,8 @@ __declspec(noinline) int $name$_lua_dispatcher::lualog_exc( lua_State * L )
 
         lua_insert(L, 1);
 
-        if (lua_istable(L, -1) && lua_hasfield(L, -1, ::lua::_lua_cthis_key)) {
-            lua_getfield(L, -1, ::lua::_lua_cthis_key);
+        if (lua_istable(L, -1) && lua_hasfield(L, -1, ::lua::_lua_dispatcher_cptr_key)) {
+            lua_getfield(L, -1, ::lua::_lua_dispatcher_cptr_key);
             if (lua_isuserdata(L, -1)) {
                 $ns rest = "::" after = "::"$lua::$name$_lua_dispatcher* ifc = reinterpret_cast<$ns rest = "::" after = "::"$lua::$name$_lua_dispatcher*>
                     (*static_cast<size_t*>(lua_touserdata(L, -1)));
@@ -615,10 +615,10 @@ __declspec(noinline) int $name$_lua_dispatcher::luaquery_interface_exc( lua_Stat
 
         lua_pushbot(L); // move object table onto top of the stack
 
-        if (!lua_istable(L, -1) || !lua_hasfield(L,-1, ::lua::_lua_cthis_key))
+        if (!lua_istable(L, -1) || !lua_hasfield(L,-1, ::lua::_lua_dispatcher_cptr_key))
             return 0;
 
-        lua_getfield(L, -1, ::lua::_lua_cthis_key);
+        lua_getfield(L, -1, ::lua::_lua_dispatcher_cptr_key);
 
         if (!lua_isuserdata(L,-1))
             return 0;
@@ -675,10 +675,10 @@ _declspec(noinline) int $name$_lua_dispatcher::luarebind_events_exc( lua_State *
 $-(if event?)$
     try {
         lua_pushvalue(L,1); // move first function argument on the top of the stack(caller object in this case)
-        if (!lua_istable(L,-1) || !lua_hasfield(L, -1, ::lua::_lua_cthis_key))
+        if (!lua_istable(L,-1) || !lua_hasfield(L, -1, ::lua::_lua_dispatcher_cptr_key))
             return 0;
 
-        lua_getfield(L, -1, ::lua::_lua_cthis_key);
+        lua_getfield(L, -1, ::lua::_lua_dispatcher_cptr_key);
         if (!lua_isuserdata(L,-1))
             return 0;
 
@@ -744,7 +744,11 @@ iref<::lua::registry_handle> $name$_lua_dispatcher::create_interface_object( boo
 
     void * cptr_holder = lua_newuserdata(L, sizeof(size_t));
     *static_cast<size_t*>(cptr_holder) = reinterpret_cast<size_t>(this);
-    lua_setfield(L, -2, ::lua::_lua_cthis_key);
+    lua_setfield(L, -2, ::lua::_lua_dispatcher_cptr_key);
+
+    cptr_holder = lua_newuserdata(L, sizeof(size_t));
+    *static_cast<size_t*>(cptr_holder) = reinterpret_cast<size_t>(this->_real());
+    lua_setfield(L, -2, ::lua::_lua_interface_cptr_key);
 
     lua_pushnumber(L, ints($hash$));
     lua_setfield(L, -2, ::lua::_lua_class_hash_key);
@@ -756,7 +760,7 @@ iref<::lua::registry_handle> $name$_lua_dispatcher::create_interface_object( boo
 
     if (make_weak) {
         obj = new ::lua::weak_registry_handle(L);
-        lua_getfield(L, -1, ::lua::_lua_cthis_key);
+        lua_getfield(L, -1, ::lua::_lua_dispatcher_cptr_key);
         lua_rawgeti(L, LUA_REGISTRYINDEX, ::lua::LUA_WEAK_IFC_MT_INDEX);
         lua_setmetatable(L,-2);
         lua_pop(L, 1);
@@ -838,29 +842,57 @@ int $name$_lua_dispatcher::register_interface_$name$(lua_State * L) {
 #ifdef _DEBUG
     const int stack_top = lua_gettop(L);
 #endif
-
-    $(if base?)$
-    coid::token base_name = lua_interface_base_class_name();
-    $(/if)$
-
+   
     lua_rawgeti(L,LUA_REGISTRYINDEX, ::lua::LUA_INTERFACE_METATABLE_REGISTER_INDEX); // push interface metatable register table
+$-(if base?)$    
+
+    const coid::token& baseclass_name = lua_interface_base_class_name();
     
+    if (!lua_hasfield(L, -1, baseclass_name))
+    {
+        typedef int(*register_interface_baseclass_$baseclass$_fn)(lua_State * L);
+        register_interface_baseclass_$baseclass$_fn register_interface_baseclass_$baseclass$ = 
+            static_cast<register_interface_baseclass_$baseclass$_fn>(interface_register::get_interface_creator("lua::register_class.$baseclassns rest="_" after="_"$$baseclass$"));
+        if(!register_interface_baseclass_$baseclass$)
+        {
+            throw coid::exception("Base class lua register function (register_interface_baseclass_$baseclass$) not registered!");
+        }
+
+        register_interface_baseclass_$baseclass$(L);
+    }
+$-(/if)$    
+
     lua_createtable(L, 0, 0);
+$-(if base?)$
+
+    // copy base class methods to our table
+    lua_getfield(L, -2, baseclass_name);
+    lua_pushnil(L);
+    while (lua_next(L, -2) != 0) {
+
+        coid::token name = lua_totoken(L, -2);
+
+        if (name != "rebind_events") {
+            lua_setfield(L, -4, name);
+        }
+        else 
+        {
+           lua_pop(L,1);
+        }
+    }
+    lua_pop(L, 1); // pop base class table
+$-(/if)$
 
 $-[method !static? !destroy ? !internal? !operator?]$
     lua_pushcfunction(L, &$..name$_lua_dispatcher::lua_$name$$@index$);
     lua_setfield(L, -2, "$name$");
-$[/method]$
-/*$-[event]$
-    lua_pushtoken(L,"empty_event");
-    lua_setfield(L, -2, "$name$");
-$[/event]-$
-  */  
+
+$-[/method]$
 $-(if event?)$
     lua_pushcfunction(L, &$name$_lua_dispatcher::luarebind_events);
     lua_setfield(L, -2, "rebind_events");
-$-(/if)$
 
+$-(/if)$
     lua_setfield(L, -2, lua_interface_class_name());
     lua_pop(L,1); // pop interface metatable register table
 

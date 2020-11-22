@@ -24,8 +24,6 @@ $-[iface]$
 $-(if direct_inheritance?)$
 static_assert($base$::is_derived_from_host_class<::$ns rest="::" after="::"$$class$>(),"class '::$ns rest="::" after="::"$$class$' must be derived from $base$ host class when using direct inheritance('|')");
 
-extern void * $baseclassns rest="_" after="_"$$baseclass$_dispatcher_get_vtable();
-
 $-(/if)$
 void * $ns rest="_" after="_"$$name$_dispatcher_get_vtable();
 
@@ -39,7 +37,6 @@ $-[/ns]$
 class $name$_dispatcher : public $name$
 {
     friend class $name$;
-    friend void * ::$ns rest="_" after="_"$$name$_dispatcher_get_vtable();
 
 private:
 
@@ -56,9 +53,15 @@ $-(if !virtual?)$
         _vtable1 = new ifn_t[$(if direct_inheritance?)$$name$::_ifc_methods_count$(elif)$$nifcmethods$$(/if)$];
         
         $-(if direct_inheritance?)$
-        memcpy(static_cast<ifn_t*>($baseclassns rest="_" after="_"$$baseclass$_dispatcher_get_vtable()),_vtable1,sizeof(*_vtable1) * $base$::_ifc_methods_count);
-        $-(/if)$
+        typedef ifn_t*(*get_baseclass_vtable_fn)();
+        get_baseclass_vtable_fn get_baseclass_vtable = static_cast<get_baseclass_vtable_fn>(interface_register::get_interface_creator("$baseclassns rest="_" after="_"$$baseclass$_dispatcher_get_vtable"_T));
+        if(!get_baseclass_vtable)
+        {
+            throw coid::exception("Base class ($baseclassns rest="::" after="::"$$baseclass$_dispatcher) vtable getter function not registered!");
+        }
 
+        memcpy(_vtable1, get_baseclass_vtable(), sizeof(*_vtable1) * $base$::_ifc_methods_count);
+        $-(/if)$
 $-[method !static?]$
  $-(if hasifc?)$
         _vtable1[$(if ..direct_inheritance?)$$..base$::_ifc_methods_count + $(/if)$$@order$] = reinterpret_cast<ifn_t>(static_cast<$return.type$(policy_intrusive_base::*)($[args rest=","]$ $-(if fnarg?)$$type$(*)($fnargs$)$(elif)$$type$$(/if)-$ $size$$[/args]$)$(if const?)$const$(/if)$>(&$name$__ifc_wrapper));
@@ -97,8 +100,8 @@ $-[method hasifc?]$
 
         return wrapper ? wrapper(__ret__.get(), new $..name$_dispatcher) : 0;
     }
-$[/method]-$
 
+$[/method]-$
     static ifn_t* get_vtable_intercept()
     {
 $-(if !virtual?)$
@@ -251,6 +254,9 @@ $-[method creator? ifccr?]$
             "$..ns rest="::" after="::"$$..name$.$name$@$..hash$.ifc",
             on ? (void*)&::$....ns rest="::" after="::"$$....class$::$name$ : nullptr);
 $-[/method]$
+        interface_register::register_interface_creator(
+            "$ns rest="_" after="_"$$name$_dispatcher_get_vtable",
+            static_cast<void*>(&get_vtable));
     }
 };
 
@@ -343,10 +349,4 @@ $[/event]-$
 $[..nss]$} //namespace $@value$
 $[/..nss]-$
 $(/if)-$
-
-void * $ns rest="_" after="_"$$name$_dispatcher_get_vtable()
-{
-    return $ns rest="::" after="::"$$name$_dispatcher::get_vtable();
-}
-
 $-[/iface]$$[/class]$
