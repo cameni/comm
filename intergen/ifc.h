@@ -60,7 +60,7 @@ namespace coid {
 //@param var name for the variable representing the connected client
 //@note clean_ptr is an intentional weak link, since interface already holds ref to the host
 //@example ifc_class_var(ns::client, "../ifc", _ifc)
-#define ifc_class_var(name,path,var) coid::clean_ptr<intergen_interface> var
+#define ifc_class_var(name,path,var) coid::clean_ptr<intergen_dispatcher> var
 #define ifc_classx_var(name,orig)
 
 ///Virtual base interface class decoration keyword for declaration of abstrac base interfaces
@@ -145,6 +145,7 @@ namespace coid {
 template <typename T> class intergen_dispatcher
     : public policy_intrusive_base
 {
+public:
     iref<T> _interface;                 //< interface object I have created
 
     intergen_interface* intergen_real_interface() final
@@ -173,6 +174,14 @@ template <typename T> class intergen_dispatcher
 
     //@return name of default creator
     virtual const coid::token& intergen_default_creator(backend bck) const = 0;
+
+    //@return dispatcher class pointer
+    template<typename T>
+    const T* dispatcher() const { return static_cast<const T*>(this); }
+
+    //@return dispatcher class pointer
+    template<typename T>
+    T* dispatcher() { return static_cast<T*>(this); }
 };
 
 
@@ -201,20 +210,11 @@ public:
     template<typename T>
     T* host() const { return static_cast<T*>(_host.get()); }
 
-    //@return interface class pointer
-    template<typename T>
-    const T* iface() const { return static_cast<const T*>(this); }
-
-    //@return interface class pointer
-    template<typename T>
-    T* iface() { return static_cast<T*>(this); }
-
     ///Invoke callback handler
     template <class R, class ...Args>
     R call(const coid::callback<R(Args...)>& cbk, Args ...args) const {
         return cbk(this, std::forward<Args>(args)...);
     }
-
 
     ifn_t* vtable() const { return _vtable; }
 
@@ -337,6 +337,8 @@ public:
     {
         static_assert( std::is_base_of<T,S>::value, "unrelated types" );
     }
+
+    virtual void force_bind_script_events() {}
 
 protected:
 
