@@ -141,6 +141,41 @@ namespace coid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///Base class for intergen dispatcher
+template <typename T> class intergen_dispatcher
+    : public policy_intrusive_base
+{
+    iref<T> _interface;                 //< interface object I have created
+
+    intergen_interface* intergen_real_interface() final
+    {
+        return _base ? _base.get() : _interface.get();
+    }
+
+    T* _real() { return static_cast<T*>(intergen_real_interface()); }
+
+    //@return back-end implementation
+    virtual backend intergen_backend() const = 0;
+
+    ///Supported interface client types (dispatcher back-ends)
+    enum class backend : int8 {
+        cxx,                            //< c++ back-end implementation
+        js,
+        jsc,
+        lua,
+
+        count_,
+        unknown = -1
+    };
+
+    //@return wrapper creator for given back-end
+    virtual void* intergen_wrapper(backend bck) const = 0;
+
+    //@return name of default creator
+    virtual const coid::token& intergen_default_creator(backend bck) const = 0;
+};
+
+
 ///Base class for intergen interfaces
 class intergen_interface
     : public policy_intrusive_base
@@ -192,26 +227,6 @@ public:
     //@return interface name
     virtual const coid::tokenhash& intergen_interface_name() const = 0;
 
-    ///Supported interface client types (dispatcher back-ends)
-    enum class backend : int8 {
-        cxx,                            //< c++ back-end implementation
-        js,
-        jsc,
-        lua,
-
-        count_,
-        unknown = -1
-    };
-
-    //@return back-end implementation
-    virtual backend intergen_backend() const = 0;
-
-    //@return wrapper creator for given back-end
-    virtual void* intergen_wrapper(backend bck) const = 0;
-
-    //@return name of default creator
-    virtual const coid::token& intergen_default_creator(backend bck) const = 0;
-
     ///Bind or unbind interface call interceptor handler for current interface and all future instances of the same interface class
     //@param capture capture buffer, 0 to turn the capture off
     //@param instid instance identifier of this interface
@@ -220,9 +235,6 @@ public:
 
     ///Dispatch a captured call
     virtual void intergen_capture_dispatch(uint mid, coid::binstring& bin) {}
-
-    //@return real interface in case this is a wrapper around an existing interface object
-    virtual intergen_interface* intergen_real_interface() { return this; }
 
 #ifdef COID_VARIADIC_TEMPLATES
 

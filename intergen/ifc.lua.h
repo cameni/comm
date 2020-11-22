@@ -61,7 +61,8 @@ namespace lua {
     static const coid::token _lua_parent_index_key = "__index";
     static const coid::token _lua_new_index_key = "__newindex";
     static const coid::token _lua_member_count_key = "__memcount";
-    static const coid::token _lua_cthis_key = "__cthis";
+    static const coid::token _lua_dispatcher_cptr_key = "__dispatcher_cptr";
+    static const coid::token _lua_interface_cptr_key = "__interface_cptr";
     static const coid::token _lua_class_hash_key = "__class_hash";
     static const coid::token _lua_gc_key = "__gc";
     static const coid::token _lua_weak_meta_key = "__weak_object_meta";
@@ -759,16 +760,23 @@ namespace lua {
         }
     };
 
+    template<class T> class lua_intergen_dispatcher :
+        : public intergen_dispatcher<T>
+    {
+    protected:
+        iref<interface_context> _context
+
+    };
+
 ////////////////////////////////////////////////////////////////////////////////
     template<class T>
     class interface_wrapper_base
-        : public T
-        , public interface_context
+        : public interface_context
     {
     public:
-        iref<T> _base;                      //< original c++ interface object
+        iref<T> _base;                      //< original c++ interface object(wrapped interface)
+        iref<T> _interface;                 //< interface object I have created
 
-                                            //T* _real() { return _base ? _base.get() : this; }
         intergen_interface* intergen_real_interface() override final
         {
             return _base ? _base.get() : this;
@@ -784,9 +792,9 @@ namespace lua {
     {
         if (!lua_istable(L,-1)) return 0;
 
-        if (!lua_hasfield(L,-1,_lua_cthis_key) || !lua_hasfield(L, -1, _lua_class_hash_key)) return 0;
+        if (!lua_hasfield(L,-1,_lua_dispatcher_cptr_key) || !lua_hasfield(L, -1, _lua_class_hash_key)) return 0;
 
-        lua_getfield(L, -1, _lua_cthis_key);
+        lua_getfield(L, -1, _lua_dispatcher_cptr_key);
         intergen_interface* p = reinterpret_cast<intergen_interface*>(*static_cast<size_t*>(lua_touserdata(L,-1)));
         lua_pop(L, 1);
 
@@ -880,7 +888,7 @@ inline int rebind_events(lua_State* L)
         return 0;
     }
 
-    if (!lua_istable(L, -1) || !lua_hasfield(L, -1, _lua_cthis_key)) // interface of C++ object 
+    if (!lua_istable(L, -1) || !lua_hasfield(L, -1, _lua_dispatcher_cptr_key)) // interface of C++ object 
     {
         coidlog_error("lua::script_implements", "The first argument is not a C++ object interface!");
         return 0;
