@@ -80,13 +80,6 @@ $[/comments]$$(/if)-$
 $-[/method]$
 
     // --- internal helpers ---
-$-(if varname? destroy.name.empty?)$
-
-    virtual ~$name$() {
-        if (_cleaner)
-            _cleaner(this, 0);
-    }
-$-(/if)$
 
     ///Interface revision hash
     static const int HASHID = $hash$u;
@@ -131,23 +124,6 @@ protected:
     static constexpr int _ifc_methods_count = $nifcmethods$$(if base?)$ + $base$::_ifc_methods_count$(/if)$;
     $-(if direct_inheritance?)$
     $-(/if)$
-$-(if varname?)$
-
-    static coid::comm_mutex& share_lock() {
-        static coid::comm_mutex _mx(500, false);
-        return _mx;
-    }
-
-    ///Cleanup routine called from ~$name$()
-    static void _cleaner_callback($name$* m, intergen_interface* ifc) {
-        m->assign_safe(ifc, 0);
-    }
-
-    bool assign_safe(intergen_interface* client__, iref<$name$>* pout);
-
-    typedef void (*cleanup_fn)($name$*, intergen_interface*);
-    cleanup_fn _cleaner = 0;
-$-(/if)$
 
     bool set_host(policy_intrusive_base*, intergen_interface*, iref<$name$>* pout);
 $-(if destroy.name.empty!)$
@@ -225,7 +201,7 @@ $[/method]-$
 $(/if)-$
 
 class  $name$_dispatcher
-    :public intergen_dispatcher<$name$>
+    :public intergen_dispatcher
 {
     $-(if !event.empty?)$
 
@@ -300,8 +276,30 @@ $-(/if)$
 $-(if varname?)$
     //@return cached active interface of given host class
     //@note host side helper
-    static iref<$name$> intergen_active_interface(::$classnsx rest="::" after="::"$$class$* host);
+    static iref<$name$_dispatcher> intergen_active_dispatcher(::$classnsx rest="::" after="::"$$class$* host);
 
+    static coid::comm_mutex& share_lock() {
+        static coid::comm_mutex _mx(500, false);
+        return _mx;
+    }
+
+    ///Cleanup routine called from ~$name$()
+    static void _cleaner_callback($name$_dispatcher* m, intergen_dispatcher* dispatch) {
+        m->assign_safe(dispatch, 0);
+    }
+
+    bool assign_safe(intergen_dispatcher* client__, iref<$name$_dispatcher>* pout);
+
+    typedef void (*cleanup_fn)($name$_dispatcher*, intergen_dispatcher*);
+    cleanup_fn _cleaner = 0;
+$-(/if)$
+
+$-(if varname? destroy.name.empty?)$
+
+    virtual ~$name$_dispatcher() {
+        if (_cleaner)
+            _cleaner(this, 0);
+    }
 $-(/if)$
 };
 
