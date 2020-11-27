@@ -149,21 +149,16 @@ namespace coid {
 ////////////////////////////////////////////////////////////////////////////////
 
 ///Base class for intergen dispatcher
-template <typename T> class intergen_dispatcher
+class intergen_dispatcher
     : public policy_intrusive_base
 {
+protected:
+    iref<intergen_interface> _interface;                 //< interface object I have created
 public:
-    iref<T> _interface;                 //< interface object I have created
-
-    intergen_interface* intergen_real_interface() final
+    intergen_interface* intergen_interface() 
     {
-        return _base ? _base.get() : _interface.get();
+        return _interface.get();
     }
-
-    T* _real() { return static_cast<T*>(intergen_real_interface()); }
-
-    //@return back-end implementation
-    virtual backend intergen_backend() const = 0;
 
     ///Supported interface client types (dispatcher back-ends)
     enum class backend : int8 {
@@ -175,6 +170,10 @@ public:
         count_,
         unknown = -1
     };
+
+    //@return back-end implementation
+    virtual backend intergen_backend() const = 0;
+
 
     //@return wrapper creator for given back-end
     virtual void* intergen_wrapper(backend bck) const = 0;
@@ -196,6 +195,7 @@ public:
 class intergen_interface
     : public policy_intrusive_base
 {
+    friend class intergen_dispatcher;
 protected:
     typedef void (policy_intrusive_base::* ifn_t)();
 

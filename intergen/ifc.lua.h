@@ -760,29 +760,11 @@ namespace lua {
         }
     };
 
-    template<class T> class lua_intergen_dispatcher :
-        : public intergen_dispatcher<T>
+    class lua_intergen_dispatcher
+        : public ::intergen_dispatcher
     {
     protected:
-        iref<interface_context> _context
-
-    };
-
-////////////////////////////////////////////////////////////////////////////////
-    template<class T>
-    class interface_wrapper_base
-        : public interface_context
-    {
-    public:
-        iref<T> _base;                      //< original c++ interface object(wrapped interface)
-        iref<T> _interface;                 //< interface object I have created
-
-        intergen_interface* intergen_real_interface() override final
-        {
-            return _base ? _base.get() : this;
-        }
-
-        T* _real() { return static_cast<T*>(intergen_real_interface()); }
+        iref<interface_context> _context;
     };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -795,31 +777,31 @@ namespace lua {
         if (!lua_hasfield(L,-1,_lua_dispatcher_cptr_key) || !lua_hasfield(L, -1, _lua_class_hash_key)) return 0;
 
         lua_getfield(L, -1, _lua_dispatcher_cptr_key);
-        intergen_interface* p = reinterpret_cast<intergen_interface*>(*static_cast<size_t*>(lua_touserdata(L,-1)));
+        intergen_dispatcher* p = reinterpret_cast<intergen_dispatcher*>(*static_cast<size_t*>(lua_touserdata(L,-1)));
         lua_pop(L, 1);
 
         lua_getfield(L, -1, _lua_class_hash_key);
         int hashid = static_cast<int>(lua_tointeger(L,-1));
         lua_pop(L, 1);
 
-        if (hashid != p->intergen_hash_id())    //sanity check
+        if (hashid != p->intergen_interface()->intergen_hash_id())    //sanity check
             return 0;
 
-        if (!p->iface_is_derived(T::HASHID))
+        if (!p->intergen_interface()->iface_is_derived(T::HASHID))
             return 0;
 
-        return static_cast<T*>(p->intergen_real_interface());
+        return static_cast<T*>(p->intergen_interface());
     }
 
 ////////////////////////////////////////////////////////////////////////////////
-inline iref<registry_handle> wrap_object(intergen_interface* orig, iref<registry_handle> ctx)
+inline iref<registry_handle> wrap_object(::intergen_dispatcher* orig, iref<registry_handle> ctx)
 {
     if (!orig) {
         return nullptr;
     }
 
-    typedef iref<registry_handle>(*fn_wrapper)(intergen_interface*, iref<registry_handle>);
-    fn_wrapper fn = static_cast<fn_wrapper>(orig->intergen_wrapper(intergen_interface::backend::lua));
+    typedef iref<registry_handle>(*fn_wrapper)(::intergen_dispatcher*, iref<registry_handle>);
+    fn_wrapper fn = static_cast<fn_wrapper>(orig->intergen_wrapper(::intergen_dispatcher::backend::lua));
 
     if (fn){
         return fn(orig, ctx);
