@@ -181,6 +181,8 @@ public:
     //@return dispatcher class pointer
     template<typename T>
     T* dispatcher() { return static_cast<T*>(this); }
+
+    virtual void force_bind_script_events() {}
 };
 
 
@@ -201,7 +203,7 @@ protected:
 
 public:
 
-    static const int VERSION = 7;
+    static const int VERSION = 8;
 
     typedef bool (*fn_unload_client)(const coid::token& client, const coid::token& module_name, coid::binstring* bstr);
 
@@ -337,8 +339,6 @@ public:
     {
         static_assert( std::is_base_of<T,S>::value, "unrelated types" );
     }
-
-    virtual void force_bind_script_events() {}
 
 protected:
 
