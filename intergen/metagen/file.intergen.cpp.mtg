@@ -235,7 +235,7 @@ $-[method creator? ifccr?]$
             on ? (void*)&::$....ns rest="::" after="::"$$....class$::$name$ : nullptr);
 $-[/method]$
         interface_register::register_interface_creator(
-            "$ns rest="_" after="_"$$name$_dispatcher_get_vtable",
+            "$ns rest="_" after="_"$$name$_get_vtable",
             static_cast<void*>(&get_vtable));
     }
 };
