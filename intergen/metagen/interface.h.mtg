@@ -63,12 +63,8 @@ $(if !comments.empty?)$$[comments]-$
     $@value$
 $[/comments]$$(/if)-$
     static iref<$..name$> $name$(
-        $-[args rest="," after=" "]$ $type$ $name$$size$ $-(if defval?)$ = $defval$$(/if)$$[/args]$) {
-        return $name$<$..name$>(0$[args]$, $name$$[/args]$);
-    }
+        $-[args rest="," after=" "]$ $type$ $name$$size$ $-(if defval?)$ = $defval$$(/if)$$[/args]$);
 
-    template<class T>
-    static iref<T> $name$( T* _subclass_$[args]$, $type$ $name$$size$ $-(if defval?)$ = $defval$$(/if)$$[/args]$ );
 $-[/method]$
 $-[method creator? ifccr?]$
 
@@ -126,7 +122,7 @@ $-(if varname?)$
     static iref<$name$> intergen_active_interface(::$classnsx rest="::" after="::"$$class$* host);
 
 $-(/if)$
-
+/*
 #if _MSC_VER == 0 || _MSC_VER >= 1920
     template<enum backend B>
 #else
@@ -149,9 +145,9 @@ $-(/if)$
         default: return 0;
         }
     }
-
+    
     backend intergen_backend() const override { return backend::cxx; }
-
+*/
     const coid::token& intergen_default_creator( backend bck ) const override $-(if !virtual?)$$(/if)$ {
         return intergen_default_creator_static(bck);
     }
@@ -200,11 +196,9 @@ $-[/pasteafters]$
 
 $-[method creator? !ifccr?]$
 ////////////////////////////////////////////////////////////////////////////////
-template<class T>
-inline iref<T> $..name$::$name$( T* _subclass_
-    $-[args]$, $type$ $name$$size$$[/args]$ )
+inline iref<$..name$> $..name$::$name$($-[args rest=", "]$$type$ $name$$size$$[/args]$ )
 {
-    typedef iref<T> (*fn_creator)($..name$*$[args]$, $type$$[/args]$);
+    typedef iref<$..name$> (*fn_creator)($[args rest=", "]$$type$$[/args]$);
 
     static fn_creator create = 0;
     static constexpr coid::token ifckey = "$..ns rest="::" after="::"$$..name$.$name$@$..hash$"_T;
@@ -218,7 +212,7 @@ inline iref<T> $..name$::$name$( T* _subclass_
         return 0;
     }
 
-    return create(_subclass_$[args]$, $name$$[/args]$);
+    return create($[args rest=", "]$$name$$[/args]$);
 }
 
 $-[/method]$
@@ -255,7 +249,7 @@ $[/method]-$
 
 #pragma warning(pop)
 $(/if)-$
-
+/*
 class  $name$_dispatcher
     :public intergen_dispatcher
 {
@@ -302,7 +296,7 @@ $-(/if)$
         default: return 0;
         }
     }
-
+    
     backend intergen_backend() const override { return backend::cxx; }
 
     const coid::token& intergen_default_creator( backend bck ) const override $-(if !virtual?)$$(/if)$ {
@@ -357,7 +351,7 @@ $-(if varname? destroy.name.empty?)$
             _cleaner(this, 0);
     }
 $-(/if)$
-};
+};*/
 
 $-[ns]$
 } //namespace

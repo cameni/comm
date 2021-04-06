@@ -81,7 +81,15 @@ namespace lua {
     const uint32 LUA_INTERFACE_METATABLE_REGISTER_INDEX = 4;
 
 
-    inline void debug_stack_value_to_str(lua_State* L, int idx, bool recursive, coid::charstr& result)
+    inline void insert_indentation(int count, coid::charstr& result) 
+    {
+        for (int i = 0; i < count; i++) 
+        {
+            result << "\t";
+        }
+    };
+
+    inline void debug_stack_value_to_str(lua_State* L, int idx, bool recursive, coid::charstr& result, int level)
     {
 
         DASSERT(idx <= lua_gettop(L));
@@ -113,24 +121,40 @@ namespace lua {
         else if (lua_istable(L, idx))
         {
             result << "{\n";
-
-            lua_pushnil(L);
-            while (lua_next(L, idx) != 0) 
+            lua_pushvalue(L, LUA_GLOBALSINDEX);
+            if (lua_rawequal(L, -1, idx)) 
             {
-                result << "\t" << lua_tostring(L,-2) << ": ";
+                insert_indentation(level, result);
+                result << "\t LUA_GLOBAL\n";
+                    insert_indentation(level, result);
+                result << "}";
+                lua_pop(L, 1);
+                return;
+            }
+            
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            while (lua_next(L, idx) != 0)
+            {
+                insert_indentation(level, result);
+				lua_pushvalue(L, -2);
+				result << "\t" << lua_tostring(L, -1) << ": ";
+				lua_pop(L, 1);
+                
                 if (lua_istable(L, -1) && !recursive)
                 {
                     result << "{...}";
                 }
                 else 
                 {
-                    debug_stack_value_to_str(L, lua_gettop(L), recursive, result);
+                    debug_stack_value_to_str(L, lua_gettop(L), recursive, result, level + 1);
                     result << "\n";
                 }
 
                 lua_pop(L, 1);
             }
 
+            insert_indentation(level, result);
             result << "}";
         }
     }
@@ -145,7 +169,7 @@ namespace lua {
             for (int i = 1; i <= n; i++)
             {
                 res << "\n" << i << ": ";
-                debug_stack_value_to_str(L, i, true, res);
+                debug_stack_value_to_str(L, i, true, res, 0);
             }
 
             coidlog_debug("debug_print_stack", res);
@@ -576,7 +600,55 @@ namespace lua {
 
         ~lua_context() {
         };
+
+        void debug_print() 
+        {
+            get_ref();
+            debug_print_stack(_L);
+            lua_pop(_L, 1);
+        }
     };
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+    inline void print_weak_registry(lua_State* L) 
+    {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_WEAK_REGISTRY_INDEX);
+        lua_getmetatable(L,-1);
+        debug_print_stack(L);
+        lua_pop(L, 2);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+
+    inline void print_registry(lua_State* L)
+    {
+        lua_pushvalue(L, LUA_REGISTRYINDEX);
+        coid::charstr result = "\n{\n";
+        lua_pushnil(L);
+        while (lua_next(L, -2) != 0)
+        {
+            if (lua_isnumber(L, -2))
+            {
+                lua_pushvalue(L, -2);
+                result << "\t" << lua_tostring(L, -1) << ": ";
+                lua_pop(L, 1);
+
+                debug_stack_value_to_str(L, lua_gettop(L), true, result, 1);
+                result << "\n";
+            }
+            
+            lua_pop(L, 1);
+        }
+
+        result << "}";
+        lua_pop(L, 1);
+
+        coidlog_debug("print_registry", result);
+    }
+
 
 ////////////////////////////////////////////////////////////////////////////////
     inline void load_script(iref<registry_handle> context, const coid::token& script_code, const coid::token& script_path) {
@@ -760,11 +832,11 @@ namespace lua {
         }
     };
 
-    class lua_intergen_dispatcher
+    class intergen_dispatcher
         : public ::intergen_dispatcher
     {
     protected:
-        iref<interface_context> _context;
+        interface_context _context;
     };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -801,7 +873,7 @@ inline iref<registry_handle> wrap_object(::intergen_dispatcher* orig, iref<regis
     }
 
     typedef iref<registry_handle>(*fn_wrapper)(::intergen_dispatcher*, iref<registry_handle>);
-    fn_wrapper fn = static_cast<fn_wrapper>(orig->intergen_wrapper(::intergen_dispatcher::backend::lua));
+    fn_wrapper fn = nullptr;//static_cast<fn_wrapper>(orig->intergen_wrapper(::intergen_dispatcher::backend::lua));
 
     if (fn){
         return fn(orig, ctx);

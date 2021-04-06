@@ -176,10 +176,10 @@ public:
 
 
     //@return wrapper creator for given back-end
-    virtual void* intergen_wrapper(backend bck) const = 0;
+    //virtual void* intergen_wrapper(backend bck) const = 0;
 
     //@return name of default creator
-    virtual const coid::token& intergen_default_creator(backend bck) const = 0;
+    //virtual const coid::token& intergen_default_creator(backend bck) const = 0;
 
     //@return dispatcher class pointer
     template<typename T>
@@ -189,7 +189,7 @@ public:
     template<typename T>
     T* dispatcher() { return static_cast<T*>(this); }
 
-    virtual void force_bind_script_events() {}
+    //virtual void force_bind_script_events() {}
 };
 
 
@@ -249,10 +249,10 @@ public:
     };
 
     //@return back-end implementation
-    virtual backend intergen_backend() const = 0;
+    //virtual backend intergen_backend() const = 0;
 
     //@return wrapper creator for given back-end
-    virtual void* intergen_wrapper(backend bck) const = 0;
+    //virtual void* intergen_wrapper(backend bck) const = 0;
 
     //@return name of default creator
     virtual const coid::token& intergen_default_creator(backend bck) const = 0;

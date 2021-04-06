@@ -53,7 +53,7 @@ $-(if !virtual?)$
         
         $-(if direct_inheritance?)$
         typedef ifn_t*(*get_baseclass_vtable_fn)();
-        get_baseclass_vtable_fn get_baseclass_vtable = static_cast<get_baseclass_vtable_fn>(interface_register::get_interface_creator("$baseclassns rest="_" after="_"$$baseclass$_dispatcher_get_vtable"_T));
+        get_baseclass_vtable_fn get_baseclass_vtable = static_cast<get_baseclass_vtable_fn>(interface_register::get_interface_creator("$baseclassns rest="_" after="_"$$baseclass$_get_vtable"_T));
         if(!get_baseclass_vtable)
         {
             throw coid::exception("Base class ($baseclassns rest="::" after="::"$$baseclass$_dispatcher) vtable getter function not registered!");
@@ -197,7 +197,7 @@ public:
     // creator methods
 
 $-[method creator? !ifccr?]$
-    static iref<$..name$> $name$( $..name$* __here__$[args]$, $type$ $name$$size$ $-(if defval?)$ = $defval$$(/if)$$[/args]$ )
+    static iref<$..name$> $name$($[args rest=", "]$ $type$ $name$$size$ $-(if defval?)$ = $defval$$(/if)$$[/args]$ )
     {
         iref<::$....ns rest="::" after="::"$$....class$> __host__ = ::$....ns rest="::" after="::"$$....class$::$intname$($[args rest=", "]$$name$$[/args]$);
         if (!__host__)
